@@ -1,0 +1,79 @@
+import mariadb
+import sys
+import paho.mqtt.client as mqtt
+from datetime import datetime
+
+
+
+# MQTT settings
+mqtt_broker = "test.mosquitto.org"
+mqtt_port = 1883
+keep_alive_interval = 60
+mqtt_topic = "BAAA/room1/#"
+linked_data={'Temperature':0,'Humidity':0,'Brightness':0,'GPS':0}
+#data_headings=['temperature','humidity','brightness','GPS']
+
+collections=[]
+list_help=[]
+
+
+
+try:
+ conn = mariadb.connect(
+    user="babyboy",
+    password="swag",
+    host="localhost",
+    port=3306,
+    database = "projectatmos",
+    autocommit = True)
+except mariadb.Error as e:
+ print(f"Error connecting to MariaDB Platform: {e}")
+ sys.exit(1)
+
+cur = conn.cursor()
+
+def add_me(cur, temperature, humidity, brightness, time,status, GPS):
+    cur.execute("INSERT INTO projectatmos.room1(temperature, humidity,brightness,time,status, GPS) VALUES (?, ?, ?, ?,?,?)",
+                (temperature, humidity,brightness, time, status,GPS))
+import sched, time
+s = sched.scheduler(time.time, time.sleep)
+
+def on_connect(client, userdata, flags, rc):
+    client.subscribe(mqtt_topic, 0)
+def on_subscribe(client, userdata, flags, rc):
+    pass
+
+
+#def on_message(client, userdata, msg):
+
+
+
+def on_message(client, userdata, msg):
+    s = msg.topic
+    header = s.replace('BAAA/room1/', '')
+
+    linked_data[header]=str(msg.payload).strip("'b")
+
+    input_data = str(msg.payload).strip("'b")
+    collections.append(input_data)
+    now = datetime.now()
+    current_time = now.strftime("%H:%M:%S")
+    new_status = 'good'
+    #s.enter(15, 1, add_me(cur, linked_data['Temperature'], linked_data['Humidity'], linked_data['Brightness'], current_time, new_status, linked_data['GPS']))
+    add_me(cur, linked_data['Temperature'], linked_data['Humidity'], linked_data['Brightness'], current_time, new_status, linked_data['GPS'])
+
+
+
+
+client = mqtt.Client()
+client.on_connect = on_connect
+client.on_message = on_message
+
+client.connect(mqtt_broker, int(mqtt_port), int(keep_alive_interval))
+
+client.loop_forever()
+
+
+
+
+
